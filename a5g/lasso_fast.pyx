@@ -60,6 +60,7 @@ def primal_value_c(double alpha, int n_samples, double[:] R,
                     int n_features, double[:] w):
     return primal_value(alpha, n_samples, &R[0], n_features, &w[0])
 
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
