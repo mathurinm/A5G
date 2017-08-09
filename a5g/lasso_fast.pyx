@@ -178,7 +178,7 @@ def a5g(double[::1, :] X,
     cdef double highest_d_obj
     cdef double gap
     cdef double radius  # for screening
-    cdef double[:] prios = np.empty(n_features, dtype=float)
+    cdef double[:] prios = np.empty(n_features)
     cdef double[:] Xty = np.dot(X.T, y)
 
     cdef int[:] disabled = np.zeros(n_features, dtype=np.int32)
@@ -298,7 +298,7 @@ def a5g(double[::1, :] X,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def gram_lasso_fast(int n_samples, int n_features, int ws_size,
+cdef double gram_lasso_fast(int n_samples, int n_features, int ws_size,
                    double[::1, :] X,
                    double[:] y,
                    double alpha,
@@ -452,10 +452,10 @@ def gram_lasso_fast(int n_samples, int n_features, int ws_size,
             tmp = - beta[C[j]]
             daxpy(&n_samples, &tmp, &X[0, C[j]], &inc, &R[0], &inc)
 
-    if monitor_time == 1:
-        return gaps  # which are times
-    if monitor_time == 2:
-        return gaps  # which are gaps
+    # if monitor_time == 1:
+    #     return gaps  # which are times
+    # if monitor_time == 2:
+    #     return gaps  # which are gaps
 
     return dual_scale
 
@@ -483,7 +483,7 @@ def compute_gram_sparse(int ws_size, int[:] C, double[:] X_data,
         for k in range(j + 1):
             startCk = X_indptr[C[k]]
             endCk = X_indptr[C[k] + 1]
-            tmp = 0
+            tmp = 0.
             j_ix = startCj
             k_ix = startCk
             while j_ix < endCj and k_ix < endCk:
@@ -592,6 +592,8 @@ def a5g_sparse(double[:] X_data,
     cdef int ii
     cdef int t  # outer loop
     cdef int inc = 1
+    cdef int startptr
+    cdef int endptr
     cdef double tmp
     cdef double prov  # same as tmp (provisional)
     cdef int ws_size
@@ -599,7 +601,7 @@ def a5g_sparse(double[:] X_data,
     cdef double d_obj
     cdef double highest_d_obj
     cdef double gap
-    cdef double[:] prios = np.empty(n_features, dtype=float)
+    cdef double[:] prios = np.empty(n_features)
     cdef double[:] Xty = np.empty(n_features)
     cdef double[:] norms_X_col = np.empty(n_features)
 
@@ -722,7 +724,7 @@ def a5g_sparse(double[:] X_data,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
+cdef double gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
                    double[:] X_data,
                    int[:] X_indices,
                    int[:] X_indptr,
@@ -790,7 +792,7 @@ def gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
             dual_norm_XtR = abs_max(ws_size, &gradients[0])
             dual_scale = fmax(alpha, dual_norm_XtR)
             np.testing.assert_allclose(gradients,  np.dot(gram, np.array(beta)[C]) - np.array(Xty)[C])
-
+            np.testing.assert_allclose(dual_norm_XtR, np.linalg.norm(gradients, ord=np.inf))
             for i in range(n_samples):
                 R[i] = y[i]
             for j in range(ws_size):
@@ -847,7 +849,7 @@ def gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
         elif strategy == 2:  # cyclic
             ii = n_updates % ws_size
             k = C[ii]
-            update = - beta[C[ii]] + ST(alpha_invnorm_Xcols_2[k],
+            update = - beta[k] + ST(alpha_invnorm_Xcols_2[k],
                                beta[k] - gradients[ii] * invnorm_Xcols_2[k])
             beta_Cii_new = beta[k] + update
             tmp = update
@@ -862,6 +864,7 @@ def gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
     else:
         if verbose:
             print("!!!! inner solver did not converge !!!!")
+            print("Last computed gap: %.2e" % gap)
         dual_norm_XtR = abs_max(ws_size, &gradients[0])
         dual_scale = fmax(alpha, dual_norm_XtR)
 
