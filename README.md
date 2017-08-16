@@ -13,5 +13,4 @@ and calls multitask_fast.mt_gram_solver (cython) on the inner loop.
 
 
 Coming:
-- sparse a5g solver
 - full cython for mt_a5g
