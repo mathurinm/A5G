@@ -3,12 +3,14 @@ import time
 from scipy import sparse
 import numpy as np
 from numpy.linalg import norm
-from sklearn.preprocessing import normalize
+from sklearn import preprocessing
 import blitzl1
 from a5g.lasso_fast import a5g_sparse
 
 
 if False:
+    # download log1p.E2006.train.bz2 at
+    # https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/regression.html
     with open("./data/log1p.E2006.train", 'rb') as f:
         X, y = load_svmlight_file(f, 4272227)
         X = sparse.csc_matrix(X)
@@ -22,13 +24,18 @@ else:
     X_new = sparse.load_npz("finance_filtered.npz")
     y = np.load("finance_target.npy")
 
+preprocess = True
+if preprocess is True:
+    X_new = preprocessing.normalize(X_new, axis=0)
+    y -= np.mean(y)
+# very important
 X_new.sort_indices()
 
 
 alpha_max = norm(X_new.T.dot(y), ord=np.inf)
 
 n_features = X_new.shape[1]
-alpha_div = 2000
+alpha_div = 10
 alpha = alpha_max / alpha_div
 
 tol = 1e-6
@@ -38,7 +45,7 @@ max_updates = 50000
 batch_size = 5
 gap_spacing = 1000
 tol_ratio_inner = 0.3
-min_ws_size = 10
+min_ws_size = 100
 
 beta_init = np.zeros(n_features)
 t0 = time.time()
