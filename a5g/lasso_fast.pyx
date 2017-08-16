@@ -542,20 +542,31 @@ cdef void set_feature_prios_sparse(int n_features, double * theta,
                             double[:] X_data, int[:] X_indices,
                             int[:] X_indptr,
                             double * norms_X_col,
-                            double * prios) nogil:
+                            double * prios, int screening,
+                            int * disabled, double radius) nogil:
     cdef int j
     cdef int i
     cdef double Xj_theta
     cdef int startptr
     cdef int endptr
+    cdef double tmp
 
     for j in range(n_features):
-        Xj_theta = 0
-        startptr = X_indptr[j]
-        endptr = X_indptr[j + 1]
-        for i in range(startptr, endptr):
-            Xj_theta += theta[X_indices[i]] * X_data[i]
-        prios[j] = fabs(fabs(Xj_theta) - 1.) / norms_X_col[j]
+        if screening and disabled[j]:
+            prios[j] = radius + 1
+        else:
+            Xj_theta = 0
+            startptr = X_indptr[j]
+            endptr = X_indptr[j + 1]
+            for i in range(startptr, endptr):
+                Xj_theta += theta[X_indices[i]] * X_data[i]
+            tmp = fabs(fabs(Xj_theta) - 1.) / norms_X_col[j]
+            if tmp > radius:
+                disabled[j] = 1
+                prios[j] = radius + 1
+            else:
+                prios[j] = tmp
+
 
 
 @cython.boundscheck(False)
@@ -604,6 +615,9 @@ def a5g_sparse(double[:] X_data,
     cdef double[:] prios = np.empty(n_features)
     cdef double[:] Xty = np.empty(n_features)
     cdef double[:] norms_X_col = np.empty(n_features)
+    cdef int[:] disabled = np.zeros(n_features, dtype=np.int32)
+    cdef double screen_thresh
+    cdef int n_active = n_features
 
     # fill Xty and norms_X_col
     for j in range(n_features):
@@ -687,9 +701,19 @@ def a5g_sparse(double[:] X_data,
             print("Early exit, gap: %.2e < %.2e" % (gap, tol))
             break
 
+        screen_thresh = sqrt(2 * gap) / alpha
         set_feature_prios_sparse(n_features, &theta[0],
                           X_data, X_indices, X_indptr,
-                          &norms_X_col[0], &prios[0])
+                          &norms_X_col[0], &prios[0], screening, &disabled[0],
+                          screen_thresh)
+
+        tol_inner = tol_ratio_inner * gap
+        if screening:
+            n_active = n_features
+            for j in range(n_features):
+                if disabled[j]:
+                    n_active -= 1
+
         ws_size = 0
         for j in range(n_features):
             if beta[j] != 0:
@@ -701,14 +725,19 @@ def a5g_sparse(double[:] X_data,
         if ws_size > n_features:
             ws_size = n_features
 
+        if screening and n_active <= 300:
+            ws_size = n_active
+            tol_inner  = tol
+            if verbose:
+                print("Less than 300 remaining features, solving fully")
+
         C = np.argpartition(np.asarray(prios), ws_size)[:ws_size].astype(np.int32)
         C.sort()
-        # print(C)
-        tol_inner = tol_ratio_inner * gap
+
         gram = compute_gram_sparse(ws_size, C, X_data, X_indices, X_indptr)
 
         if verbose:
-            print("Solving subproblem with %d constraints" % len(C))
+            print("Solving subproblem with %d constraints (%d active)" % (ws_size, n_active))
         # calling inner solver which will modify beta and R inplace
         dual_scale = gram_lasso_fast_sparse(n_samples, n_features, ws_size,
                                 X_data, X_indices, X_indptr,

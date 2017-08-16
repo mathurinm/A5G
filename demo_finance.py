@@ -28,6 +28,7 @@ preprocess = True
 if preprocess is True:
     X_new = preprocessing.normalize(X_new, axis=0)
     y -= np.mean(y)
+    y /= norm(y, ord=2)
 # very important
 X_new.sort_indices()
 
@@ -35,10 +36,10 @@ X_new.sort_indices()
 alpha_max = norm(X_new.T.dot(y), ord=np.inf)
 
 n_features = X_new.shape[1]
-alpha_div = 10
+alpha_div = 4
 alpha = alpha_max / alpha_div
 
-tol = 1e-6
+tol = 1e-8
 
 max_iter = 40
 max_updates = 50000
@@ -49,13 +50,15 @@ min_ws_size = 100
 
 beta_init = np.zeros(n_features)
 t0 = time.time()
-test = a5g_sparse(X_new.data, X_new.indices, X_new.indptr, y, alpha, beta_init,
-                  max_iter, gap_spacing, max_updates, batch_size,
-                  tol_ratio_inner=tol_ratio_inner, tol=tol, verbose=True,
-                  strategy=3, min_ws_size=min_ws_size)
+a5g_res = a5g_sparse(X_new.data, X_new.indices, X_new.indptr, y, alpha, beta_init,
+                     max_iter, gap_spacing, max_updates, batch_size,
+                     tol_ratio_inner=tol_ratio_inner, tol=tol, verbose=True,
+                     strategy=3, min_ws_size=min_ws_size, screening=0)
 dur_a5g = time.time() - t0
 print("A5G time %.4f" % (dur_a5g))
-beta = np.array(test[0])
+beta = np.array(a5g_res[0])
+gaps = a5g_res[2]
+times = a5g_res[3]
 print(beta[beta != 0])
 
 
