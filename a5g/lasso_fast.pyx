@@ -12,7 +12,7 @@ cdef inline double fmax(double x, double y) nogil:
 
 
 cdef inline double fmin(double x, double y) nogil:
-    return y if x > y else y
+    return y if x > y else x
 
 
 cdef inline double fsign(double x) nogil :
@@ -116,7 +116,7 @@ cdef double compute_scal(int n_samples, int n_features, double * theta,
                                      &inc))
                 if Xj_theta > 1.:
                     Xj_theta = 1
-                scal = min(scal, (1. - Xj_theta) / (Xj_ksi - Xj_theta))
+                scal = fmin(scal, (1. - Xj_theta) / (Xj_ksi - Xj_theta))
     return scal
 
 
@@ -523,14 +523,15 @@ cdef double compute_scal_sparse(int n_features, double * theta,
             Xj_ksi += X_data[i] * ksi[X_indices[i]]
         Xj_ksi = fabs(Xj_ksi)
 
-        if Xj_ksi > 1:
+        if Xj_ksi > 1 + 1e-12: # avoid numerical errors
             Xj_theta = 0.
             for i in range(startptr, endptr):
                 Xj_theta += X_data[i] * theta[X_indices[i]]
             Xj_theta = fabs(Xj_theta)
             if Xj_theta > 1.:
                 Xj_theta = 1
-            scal = min(scal, (1. - Xj_theta) / (Xj_ksi - Xj_theta))
+            scal = fmin(scal, (1. - Xj_theta) / (Xj_ksi - Xj_theta))
+
     return scal
 
 
@@ -555,7 +556,6 @@ cdef void set_feature_prios_sparse(int n_features, double * theta,
         for i in range(startptr, endptr):
             Xj_theta += theta[X_indices[i]] * X_data[i]
         prios[j] = fabs(fabs(Xj_theta) - 1.) / norms_X_col[j]
-
 
 
 @cython.boundscheck(False)
@@ -643,7 +643,12 @@ def a5g_sparse(double[:] X_data,
         scal = compute_scal_sparse(n_features, &theta[0], &ksi[0],
                             X_data, X_indices, X_indptr)
         if scal == 1:  # ksi is feasible, set theta = ksi
+            print("Feasible ksi, complicated scaling might not be needed")
             dcopy(&n_samples, &ksi[0], &inc, &theta[0], &inc)
+        elif scal == 0.:
+            print("WARNING scal=0, d_obj will stay the same, \
+                  this should not happen ")
+
         else:
             for i in range(n_samples):
                 theta[i] = scal * ksi[i] + (1. - scal) * theta[i]
@@ -714,7 +719,6 @@ def a5g_sparse(double[:] X_data,
                                 gap_spacing=gap_spacing, strategy=strategy,
                                 batch_size=batch_size, verbose=verbose)
 
-        # np.testing.assert_allclose(R, y - np.dot(X, beta))
         for i in range(n_samples):
             ksi[i] = R[i] / dual_scale
 
