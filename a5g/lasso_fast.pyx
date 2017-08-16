@@ -780,7 +780,6 @@ cdef double gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
     cdef double update
     cdef double abs_update
     cdef double best_abs_update
-    cdef double t0 = time.time()
 
     # initialize gradients: np.dot(gram, beta[C]) - Xty[C]
     cdef double[:] gradients = np.zeros(ws_size)
@@ -795,8 +794,6 @@ cdef double gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
             # dual scale
             dual_norm_XtR = abs_max(ws_size, &gradients[0])
             dual_scale = fmax(alpha, dual_norm_XtR)
-            np.testing.assert_allclose(gradients,  np.dot(gram, np.array(beta)[C]) - np.array(Xty)[C])
-            np.testing.assert_allclose(dual_norm_XtR, np.linalg.norm(gradients, ord=np.inf))
             for i in range(n_samples):
                 R[i] = y[i]
             for j in range(ws_size):
@@ -827,7 +824,17 @@ cdef double gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
 
         # choose feature ii to update
         if strategy == 1:
-            pass
+            # full greedy
+            for j in range(ws_size):
+                k = C[j]
+                update = - beta[k] + ST(alpha_invnorm_Xcols_2[k],
+                                   beta[k] - gradients[j] * invnorm_Xcols_2[k])
+                abs_update = fabs(update)
+                if  j == 0 or abs_update > best_abs_update:
+                    best_abs_update = abs_update
+                    ii = j
+                    beta_Cii_new = beta[C[ii]] + update
+                    tmp = update
 
         elif strategy == 3:
             # Greedy Cyclic block (non random)
