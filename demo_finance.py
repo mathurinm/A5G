@@ -2,9 +2,10 @@ from sklearn.datasets import load_svmlight_file
 import time
 from scipy import sparse
 import numpy as np
-from a5g.lasso_fast import a5g_sparse
 from numpy.linalg import norm
 from sklearn.preprocessing import normalize
+import blitzl1
+from a5g.lasso_fast import a5g_sparse
 
 
 if False:
@@ -21,27 +22,30 @@ else:
     X_new = sparse.load_npz("finance_filtered.npz")
     y = np.load("finance_target.npy")
 
+X_new.sort_indices()
+
 
 alpha_max = norm(X_new.T.dot(y), ord=np.inf)
 
 n_features = X_new.shape[1]
-alpha_div = 2
+alpha_div = 2000
 alpha = alpha_max / alpha_div
 
 tol = 1e-6
 
-max_iter = 5
+max_iter = 40
 max_updates = 50000
-batch_size = 10
+batch_size = 5
 gap_spacing = 1000
 tol_ratio_inner = 0.3
+min_ws_size = 10
 
 beta_init = np.zeros(n_features)
 t0 = time.time()
 test = a5g_sparse(X_new.data, X_new.indices, X_new.indptr, y, alpha, beta_init,
                   max_iter, gap_spacing, max_updates, batch_size,
                   tol_ratio_inner=tol_ratio_inner, tol=tol, verbose=True,
-                  strategy=2)
+                  strategy=3, min_ws_size=min_ws_size)
 dur_a5g = time.time() - t0
 print("A5G time %.4f" % (dur_a5g))
 beta = np.array(test[0])
@@ -58,26 +62,11 @@ print(p_obj - d_obj)
 assert (p_obj - d_obj) < tol
 
 
-from sklearn.linear_model import Lasso
-clf = Lasso(alpha=alpha / len(y))
-clf.fit(X_new, y)
-
-
-
-from a5g.lasso_fast import compute_gram_sparse
-C = np.random.choice(X_new.shape[1], 20, replace=False).astype(np.int32)
-gram_test = compute_gram_sparse(len(C), C, X_new.data, X_new.indices,
-                                X_new.indptr)
-gram_test = np.array(gram_test)
-a = gram_test
-b = (X_new[:, C].T.dot(X_new[:, C])).toarray()
-np.testing.assert_allclose(a, b)
-
-
-c = np.random.uniform(-1, 1, size=(10, 10))
-c[np.random.uniform(size=c.shape) >0.4] = 0
-c = sparse.csc_matrix(c)
-C = np.array([0, 1, 2]).astype(np.int32)
-np.array(compute_gram_sparse(len(C), C, c.data, c.indices,
-                                c.indptr))
-c[:, C].T.dot(c[:, C]).toarray()
+t0 = time.time()
+prob = blitzl1.LassoProblem(X_new, y)
+blitzl1.set_use_intercept(False)
+sol = prob.solve(alpha)
+print("Blitz time %.3f s" % (time.time() - t0))
+beta_blitz = sol.x[sol.x != 0]
+R = y - X_new.dot(sol.x)
+p_obj_blitz = 0.5 * (R ** 2).sum() + alpha * norm(sol.x, ord=1)

@@ -154,7 +154,7 @@ def a5g(double[::1, :] X,
         int batch_size,
         float tol_ratio_inner=0.3,
         float tol=1e-6,
-        int p0=100,
+        int min_ws_size=100,
         int screening=0,
         int strategy=3,
         int verbose=0,
@@ -242,10 +242,10 @@ def a5g(double[::1, :] X,
         times[t] = time.time() - t0
 
         if verbose:
-            print("Iteration %d" % t)
-            print("Primal {:.10f}".format(p_obj))
-            print("Dual {:.10f}".format(highest_d_obj))
-            print("Log gap %.2e" % gap)
+            print("----Iteration %d" % t)
+            print("    Primal {:.10f}".format(p_obj))
+            print("    Dual   {:.10f}".format(highest_d_obj))
+            print("    Gap %.2e" % gap)
 
         if gap < tol:
             print("Early exit, gap: %.2e < %.2e" % (gap, tol))
@@ -268,8 +268,8 @@ def a5g(double[::1, :] X,
 
         if verbose and screening:
             print("%d disabled features" % n_disabled)
-        if ws_size < p0:
-            ws_size = p0
+        if ws_size < min_ws_size:
+            ws_size = min_ws_size
         if ws_size > n_features - n_disabled:
             ws_size = n_features - n_disabled
 
@@ -573,7 +573,7 @@ def a5g_sparse(double[:] X_data,
                int batch_size,
                float tol_ratio_inner=0.3,
                float tol=1e-6,
-               int p0=100,
+               int min_ws_size=100,
                int screening=0,
                int strategy=3,
                int verbose=0
@@ -678,10 +678,10 @@ def a5g_sparse(double[:] X_data,
         times[t] = time.time() - t0
 
         if verbose:
-            print("Iteration %d" % t)
-            print("Primal {:.10f}".format(p_obj))
-            print("Dual {:.10f}".format(highest_d_obj))
-            print("Log gap %.2e" % gap)
+            print("----Iteration %d" % t)
+            print("    Primal {:.10f}".format(p_obj))
+            print("    Dual   {:.10f}".format(highest_d_obj))
+            print("    Gap %.2e" % gap)
 
         if gap < tol:
             print("Early exit, gap: %.2e < %.2e" % (gap, tol))
@@ -696,8 +696,8 @@ def a5g_sparse(double[:] X_data,
                 prios[j] = -1.
                 ws_size += 2
 
-        if ws_size < p0:
-            ws_size = p0
+        if ws_size < min_ws_size:
+            ws_size = min_ws_size
         if ws_size > n_features:
             ws_size = n_features
 

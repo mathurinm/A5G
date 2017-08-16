@@ -2,7 +2,11 @@
 *.so
 *.cpp
 *.o
+*.c
 *.pyc
+
+# Cython analysis
+*.html
 
 # PKG
 a5g.egg-info/*
