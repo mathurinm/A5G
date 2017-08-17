@@ -26,7 +26,15 @@ cdef inline double fsign(double x) nogil :
 
 cdef inline double ST(double u, double x) nogil:
     return fsign(x) * fmax(fabs(x) - u, 0.)
+    
 
+# cdef inline double ST(double u, double x) nogil:
+#     if x > u:
+#         return x - u
+#     elif x < -u:
+#         return x + u
+#     else:
+#         return 0.
 
 # for UT
 def ST_c(double u, double x):
@@ -657,7 +665,8 @@ def a5g_sparse(double[:] X_data,
         scal = compute_scal_sparse(n_features, &theta[0], &ksi[0],
                             X_data, X_indices, X_indptr)
         if scal == 1:  # ksi is feasible, set theta = ksi
-            print("Feasible ksi, complicated scaling might not be needed")
+            if verbose:
+                print("Feasible ksi, complicated scaling might not be needed")
             dcopy(&n_samples, &ksi[0], &inc, &theta[0], &inc)
         elif scal == 0.:
             print("WARNING scal=0, d_obj will stay the same, \
