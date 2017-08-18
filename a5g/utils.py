@@ -84,3 +84,22 @@ def mt_compute_alpha(Theta, Ksi, X):
     alphas = np.minimum(alphas, 1.)
 
     return np.min(alphas)
+
+
+def configure_plt():
+    import seaborn as sns
+    from matplotlib import rc
+    import matplotlib.pyplot as plt
+
+    rc('font', **{'family': 'sans-serif', 'sans-serif': ['Computer Modern Roman']})
+    params = {'axes.labelsize': 12,
+              'font.size': 12,
+              'legend.fontsize': 12,
+              'xtick.labelsize': 10,
+              'ytick.labelsize': 10,
+              'text.usetex': True,
+              'figure.figsize': (8, 6)}
+    plt.rcParams.update(params)
+
+    sns.set_context("poster")
+    sns.set_style("ticks")

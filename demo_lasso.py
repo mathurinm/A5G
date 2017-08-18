@@ -12,6 +12,7 @@ dataset_id = 'leukemia'
 leuk = fetch_mldata('leukemia')
 X = np.asfortranarray(leuk.data)
 y = leuk.target.astype(float)
+y -= np.mean(y)
 y /= np.linalg.norm(y)
 n_samples, n_features = X.shape
 alpha_max = np.max(np.abs(np.dot(X.T, y)))
