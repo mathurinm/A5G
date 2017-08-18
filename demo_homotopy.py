@@ -2,7 +2,10 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import blitzl1
+from scipy import sparse
 from sklearn.datasets.mldata import fetch_mldata
+from sklearn import preprocessing
+from numpy.linalg import norm
 from a5g import lasso_path
 from a5g.utils import configure_plt
 
@@ -69,17 +72,30 @@ def blitz_path(X, y, alphas, eps, max_iter=100):
 
 
 if __name__ == "__main__":
-    dataset_id = 'leukemia'
-    leuk = fetch_mldata('leukemia')
-    X = np.asfortranarray(leuk.data)
-    y = leuk.target.astype(float)
-    y -= np.mean(y)
-    y /= np.linalg.norm(y)
-    n_samples, n_features = X.shape
-    alpha_max = np.max(np.abs(np.dot(X.T, y)))
+    # dataset_id = 'leukemia'
+    dataset_id = 'finance'
+    if dataset_id == "leukemia":
+        leuk = fetch_mldata('leukemia')
+        X = np.asfortranarray(leuk.data)
+        y = leuk.target.astype(float)
+        y -= np.mean(y)
+        y /= np.linalg.norm(y)
+    elif dataset_id == "finance":
+        X = sparse.load_npz("./data/finance_filtered.npz")
+        y = np.load("./data/finance_target.npy")
 
-    n_alphas = 10
-    alphas = alpha_max * np.logspace(0, -3, n_alphas)
+        preprocess = True
+        if preprocess is True:
+            X = preprocessing.normalize(X, axis=0)
+            y -= np.mean(y)
+            y /= norm(y)
+        X.sort_indices()
+
+    n_samples, n_features = X.shape
+    alpha_max = np.max(np.abs(X.T.dot(y)))
+
+    n_alphas = 4
+    alphas = alpha_max * np.logspace(0, -.5, n_alphas)
     tols = np.logspace(-2, -8, 4)
     dur_a5g = np.zeros_like(tols)
     dur_a5g_ns = np.zeros_like(tols)
