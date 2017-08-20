@@ -26,7 +26,7 @@ cdef inline double fsign(double x) nogil :
 
 cdef inline double ST(double u, double x) nogil:
     return fsign(x) * fmax(fabs(x) - u, 0.)
-    
+
 
 # cdef inline double ST(double u, double x) nogil:
 #     if x > u:
@@ -244,10 +244,9 @@ def a5g(double[::1, :] X,
 
         p_obj = primal_value(alpha, n_samples, &R[0], n_features, &beta[0])
         gap = p_obj - highest_d_obj
-        gaps[t] = gap
-        if screening:
-            radius = sqrt(2. * gap) / alpha
         times[t] = time.time() - t0
+        gaps[t] = gap
+        radius = sqrt(2. * gap) / alpha
 
         if verbose:
             print("----Iteration %d" % t)
