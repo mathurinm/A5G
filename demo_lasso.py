@@ -2,7 +2,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.datasets.mldata import fetch_mldata
-from a5g.lasso_fast import a5g
+from a5g.lasso_fast import a5g_lasso
 
 
 ###############################################################################
@@ -39,7 +39,7 @@ for i in range(repeats):
     print("Repetition %d" % i)
     t0 = time.time()
     beta_init = np.zeros(n_features)
-    output = a5g(X, y, alpha, beta_init,
+    output = a5g_lasso(X, y, alpha, beta_init,
                  max_iter, gap_spacing, max_updates, batch_size,
                  tol_ratio_inner=tol_ratio_inner, tol=tol, verbose=verbose,
                  strategy=strategy, screening=1)

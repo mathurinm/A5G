@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.sparse
-from .lasso_fast import a5g, a5g_sparse
+from .lasso_fast import a5g_lasso, a5g_lasso_sparse
 
 
 def lasso_path(X, y, alphas, tol,
@@ -16,11 +16,10 @@ def lasso_path(X, y, alphas, tol,
     if not sparse:
         if not np.isfortran(X):
             X = np.asfortranarray(X)
-        solver = a5g
+        solver = a5g_lasso
     else:
         if X.getformat() != 'csc' or not X.has_sorted_indices:
             raise ValueError("Give csc matrix with sorted indices")
-
 
     betas = np.zeros((n_alphas, n_features))
     final_gaps = np.zeros(n_alphas)
@@ -45,7 +44,7 @@ def lasso_path(X, y, alphas, tol,
                          strategy=3, screening=screening,
                          min_ws_size=min_ws_size)
         else:
-            sol = a5g_sparse(X.data, X.indices, X.indptr, y, alpha, beta_init,
+            sol = a5g_lasso_sparse(X.data, X.indices, X.indptr, y, alpha, beta_init,
                              max_iter, gap_spacing, max_updates, batch_size,
                              tol=tol, verbose=verbose_solver,
                              strategy=3, min_ws_size=min_ws_size,

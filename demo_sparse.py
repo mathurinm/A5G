@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from a5g.lasso_fast import a5g_sparse
+from a5g.lasso_fast import a5g_lasso_sparse
 from scipy import sparse
 
 n_samples = 1608
@@ -33,10 +33,10 @@ n_reps = 5
 for _ in range(n_reps):
 
     t0 = time.time()
-    test = a5g_sparse(X.data, X.indices, X.indptr, y, alpha, beta_init,
-                      max_iter, gap_spacing, max_updates, batch_size,
-                      tol_ratio_inner=tol_ratio_inner, tol=tol, verbose=False,
-                      strategy=3)
+    test = a5g_lasso_sparse(X.data, X.indices, X.indptr, y, alpha, beta_init,
+                            max_iter, gap_spacing, max_updates, batch_size,
+                            tol_ratio_inner=tol_ratio_inner, tol=tol,
+                            verbose=False, strategy=3)
     dur_a5g = time.time() - t0
     print("A5G time %.4f" % (dur_a5g))
     all_times.append(dur_a5g)

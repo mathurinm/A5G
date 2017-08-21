@@ -152,7 +152,7 @@ cdef void set_feature_prios(int n_samples, int n_features, double * theta,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def a5g(double[::1, :] X,
+def a5g_lasso(double[::1, :] X,
         double[:] y,
         double alpha,
         double[:] beta_init,
@@ -177,7 +177,7 @@ def a5g(double[::1, :] X,
     cdef double[:] ksi = np.zeros(n_samples)
     cdef int j  # features
     cdef int i  # samples
-    cdef int t  # outer loop
+    cdef int it  # outer loop
     cdef int inc = 1
     cdef double tmp
     cdef int ws_size
@@ -218,7 +218,7 @@ def a5g(double[::1, :] X,
 
     cdef double[::1, :] gram
 
-    for t in range(max_iter):
+    for it in range(max_iter):
         scal = compute_scal(n_samples, n_features, &theta[0], &ksi[0],
                             X, &disabled[0])
         if scal == 1:  # ksi is feasible, set theta = ksi
@@ -239,17 +239,17 @@ def a5g(double[::1, :] X,
             d_obj -= (y[i] / alpha - theta[i]) ** 2
         d_obj *= 0.5 * alpha ** 2
         d_obj += 0.5 * norm_y2
-        if t == 0 or d_obj > highest_d_obj:
+        if it == 0 or d_obj > highest_d_obj:
             highest_d_obj = d_obj
 
         p_obj = primal_value(alpha, n_samples, &R[0], n_features, &beta[0])
         gap = p_obj - highest_d_obj
-        times[t] = time.time() - t0
-        gaps[t] = gap
+        times[it] = time.time() - t0
+        gaps[it] = gap
         radius = sqrt(2. * gap) / alpha
 
         if verbose:
-            print("----Iteration %d" % t)
+            print("----Iteration %d" % it)
             print("    Primal {:.10f}".format(p_obj))
             print("    Dual   {:.10f}".format(highest_d_obj))
             print("    Gap %.2e" % gap)
@@ -299,7 +299,7 @@ def a5g(double[::1, :] X,
         for i in range(n_samples):
             ksi[i] = R[i] / dual_scale
 
-    return beta, R, np.asarray(gaps[:t + 1]), np.asarray(times[:t + 1])
+    return np.asarray(beta), np.asarray(R), np.asarray(gaps[:it + 1]), np.asarray(times[:it + 1])
 
 
 @cython.boundscheck(False)
@@ -570,7 +570,7 @@ cdef void set_feature_prios_sparse(int n_features, double * theta,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def a5g_sparse(double[:] X_data,
+def a5g_lasso_sparse(double[:] X_data,
                int[:] X_indices,
                int[:] X_indptr,
                double[:] y,
@@ -599,7 +599,7 @@ def a5g_sparse(double[:] X_data,
     cdef int j  # features
     cdef int i  # samples
     cdef int ii
-    cdef int t  # outer loop
+    cdef int it  # outer loop
     cdef int inc = 1
     cdef int startptr
     cdef int endptr
@@ -651,7 +651,7 @@ def a5g_sparse(double[:] X_data,
 
     cdef double[::1, :] gram
 
-    for t in range(max_iter):
+    for it in range(max_iter):
         scal = compute_scal_sparse(n_features, &theta[0], &ksi[0],
                             X_data, X_indices, X_indptr)
         if scal == 1:  # ksi is feasible, set theta = ksi
@@ -681,16 +681,16 @@ def a5g_sparse(double[:] X_data,
             d_obj -= (y[i] / alpha - theta[i]) ** 2
         d_obj *= 0.5 * alpha ** 2
         d_obj += 0.5 * norm_y2
-        if t == 0 or d_obj > highest_d_obj:
+        if it == 0 or d_obj > highest_d_obj:
             highest_d_obj = d_obj
 
         p_obj = primal_value(alpha, n_samples, &R[0], n_features, &beta[0])
         gap = p_obj - highest_d_obj
-        gaps[t] = gap
-        times[t] = time.time() - t0
+        gaps[it] = gap
+        times[it] = time.time() - t0
 
         if verbose:
-            print("----Iteration %d" % t)
+            print("----Iteration %d" % it)
             print("    Primal {:.10f}".format(p_obj))
             print("    Dual   {:.10f}".format(highest_d_obj))
             print("    Gap %.2e" % gap)
@@ -749,7 +749,7 @@ def a5g_sparse(double[:] X_data,
         for i in range(n_samples):
             ksi[i] = R[i] / dual_scale
 
-    return beta, R, np.asarray(gaps[:t + 1]), np.asarray(times[:t + 1])
+    return np.asarray(beta), np.asarray(R), np.asarray(gaps[:it + 1]), np.asarray(times[:it + 1])
 
 
 @cython.boundscheck(False)

@@ -5,7 +5,7 @@ import numpy as np
 from numpy.linalg import norm
 from sklearn import preprocessing
 import blitzl1
-from a5g.lasso_fast import a5g_sparse
+from a5g.lasso_fast import a5g_lasso_sparse
 
 
 if False:
@@ -18,11 +18,11 @@ if False:
         NNZ = np.diff(X.indptr)
         X_new = X[:, NNZ >= 3]
 
-        sparse.save_npz("finance_filtered", X_new)
-        np.save("finance_target", y)
+        sparse.save_npz("./data/finance_filtered", X_new)
+        np.save("./data/finance_target", y)
 else:
-    X_new = sparse.load_npz("finance_filtered.npz")
-    y = np.load("finance_target.npy")
+    X_new = sparse.load_npz("./data/finance_filtered.npz")
+    y = np.load("./data/finance_target.npy")
 
 preprocess = True
 if preprocess is True:
@@ -50,7 +50,7 @@ min_ws_size = 100
 
 beta_init = np.zeros(n_features)
 t0 = time.time()
-a5g_res = a5g_sparse(X_new.data, X_new.indices, X_new.indptr, y, alpha, beta_init,
+a5g_res = a5g_lasso_sparse(X_new.data, X_new.indices, X_new.indptr, y, alpha, beta_init,
                      max_iter, gap_spacing, max_updates, batch_size,
                      tol_ratio_inner=tol_ratio_inner, tol=tol, verbose=True,
                      strategy=3, min_ws_size=min_ws_size, screening=0)
