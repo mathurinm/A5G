@@ -661,7 +661,6 @@ def a5g_sparse(double[:] X_data,
         elif scal == 0.:
             print("WARNING scal=0, d_obj will stay the same, \
                   this should not happen ")
-
         else:
             for i in range(n_samples):
                 theta[i] = scal * ksi[i] + (1. - scal) * theta[i]

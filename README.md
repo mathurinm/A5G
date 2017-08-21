@@ -7,10 +7,3 @@ If you want to install it system wide, the command is
 Then in a python console you can do
 ```from a5g.lasso_fast import a5g```
 
-
-a5g for the lasso (lasso_fast.a5g) in fully coded in cython, whereas mt_a5g has its outer loop in python
-and calls multitask_fast.mt_gram_solver (cython) on the inner loop.
-
-
-Coming:
-- full cython for mt_a5g
