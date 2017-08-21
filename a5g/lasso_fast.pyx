@@ -323,8 +323,6 @@ cdef double gram_lasso_fast(int n_samples, int n_features, int ws_size,
                    int strategy=3,
                    int batch_size=10,
                    int verbose=0,
-                   int monitor_time=0,
-                   int early_stop=1,
                    ):
 
     cdef int i # to iterate over samples.
@@ -334,9 +332,8 @@ cdef double gram_lasso_fast(int n_samples, int n_features, int ws_size,
     cdef int nb_batch = int(ceil(1.0 * ws_size / batch_size))
     cdef int start
     cdef int stop
-    cdef int n_updates = 0
-    cdef double beta_Cjj
-    cdef double beta_Cjj_new
+    cdef int n_updates
+    # cdef double beta_Cjj
     cdef double beta_Cii_new
     cdef int inc = 1
     # gap related:
@@ -348,11 +345,9 @@ cdef double gram_lasso_fast(int n_samples, int n_features, int ws_size,
     cdef double highest_d_obj = 0. # d_obj is always >=0 so this gets replaced
     # at first d_obj computation. highest_d_obj corresponds to theta = 0.
     cdef double tmp
-
     cdef double update
     cdef double abs_update
     cdef double best_abs_update
-    cdef double t0 = time.time()
 
     # initialize gradients: np.dot(gram, beta[C]) - Xty[C]
     cdef double[:] gradients = np.zeros(ws_size)
@@ -362,37 +357,33 @@ cdef double gram_lasso_fast(int n_samples, int n_features, int ws_size,
         gradients[j] -= Xty[C[j]]
 
     for n_updates in range(max_updates):
-
         if (n_updates + 1) % gap_spacing == 0:
             # dual scale
-            if monitor_time== 1:
-                gaps[n_updates // gap_spacing] = time.time() - t0
-            else:
-                dual_norm_XtR = abs_max(ws_size, &gradients[0])
-                dual_scale = fmax(alpha, dual_norm_XtR)
+            dual_norm_XtR = abs_max(ws_size, &gradients[0])
+            dual_scale = fmax(alpha, dual_norm_XtR)
 
-                for i in range(n_samples):
-                    R[i] = y[i]
-                for j in range(ws_size):
-                    if beta[C[j]] == 0.:
-                        continue
-                    tmp = - beta[C[j]]
-                    daxpy(&n_samples, &tmp, &X[0, C[j]], &inc, &R[0], &inc)
+            for i in range(n_samples):
+                R[i] = y[i]
+            for j in range(ws_size):
+                if beta[C[j]] == 0.:
+                    continue
+                tmp = - beta[C[j]]
+                daxpy(&n_samples, &tmp, &X[0, C[j]], &inc, &R[0], &inc)
 
 
-                d_obj = dual_value(alpha, n_samples, &R[0], &y[0], dual_scale,
-                                   norm_y2)
-                if n_updates == 1 or d_obj > highest_d_obj:
-                    highest_d_obj = d_obj
-                # we pass full beta and will ignore zero values
-                gap = primal_value(alpha, n_samples, &R[0], n_features,
-                                   &beta[0]) - highest_d_obj
-                gaps[n_updates / gap_spacing] = gap
-                if gap < eps and early_stop:
-                    if verbose:
-                        print("Inner: early exit at update %d, gap: %.2e < %.2e" % \
-                            (n_updates, gap, eps))
-                    return dual_scale
+            d_obj = dual_value(alpha, n_samples, &R[0], &y[0], dual_scale,
+                               norm_y2)
+            if n_updates == (gap_spacing - 1) or d_obj > highest_d_obj:
+                highest_d_obj = d_obj
+            # we pass full beta and will ignore zero values
+            gap = primal_value(alpha, n_samples, &R[0], n_features,
+                               &beta[0]) - highest_d_obj
+            gaps[n_updates / gap_spacing] = gap
+            if gap < eps:
+                if verbose:
+                    print("Inner: early exit at update %d, gap: %.2e < %.2e" % \
+                        (n_updates, gap, eps))
+                return dual_scale
 
 
         # choose feature ii to update
@@ -800,8 +791,8 @@ cdef double gram_lasso_fast_sparse(int n_samples, int n_features, int ws_size,
     cdef int stop
     cdef int n_updates = 0
     cdef double beta_Cj
-    cdef double beta_Cjj
-    cdef double beta_Cjj_new
+    # cdef double beta_Cjj
+    # cdef double beta_Cjj_new
     cdef double beta_Cii_new
     cdef int inc = 1
     # gap related:
