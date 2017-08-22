@@ -48,32 +48,38 @@ cdef double mt_primal_value(double alpha, int n_samples, int n_tasks,
         p_obj += dnrm2(&n_tasks, &R[ii, 0], &inc) ** 2 / 2
     return p_obj
 
-# for UT
-def mt_primal_c(double alpha, int n_samples, int n_tasks,
-                int n_features, double[:, ::1] R, double[:, ::1] W):
-    return mt_primal_value(alpha, n_samples, n_tasks, n_features, R, W)
+# # for UT
+# def mt_primal_c(double alpha, int n_samples, int n_tasks,
+#                 int n_features, double[:, ::1] R, double[:, ::1] W):
+#     return mt_primal_value(alpha, n_samples, n_tasks, n_features, R, W)
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
 cdef double mt_dual_value(double alpha, int n_samples, int n_tasks, double[:, ::1] R,
-                   double[:, ::1] Y, double dual_scale, double norm_Yfro) nogil:
+                   double[:, ::1] Y, double dual_scale, double norm_Yfro,
+                   double[:, ::1] Theta, int with_theta) nogil:
     cdef double d_obj = 0
     cdef int ii
     cdef int jj
-    for ii in range(n_samples):
-        for jj in range(n_tasks):
-            d_obj -= (Y[ii, jj] / alpha - R[ii, jj] / dual_scale) ** 2
+    if with_theta:
+        for ii in range(n_samples):
+            for jj in range(n_tasks):
+                d_obj -= (Y[ii, jj] / alpha - Theta[ii, jj]) ** 2
+    else:
+        for ii in range(n_samples):
+            for jj in range(n_tasks):
+                d_obj -= (Y[ii, jj] / alpha - R[ii, jj] / dual_scale) ** 2
     d_obj *= 0.5 * alpha ** 2
     d_obj += 0.5 * norm_Yfro
 
     return d_obj
 
-# for UT
-def mt_dual_c(double alpha, int n_samples, int n_tasks, double[:, ::1] R,
-                   double[:, ::1] Y, double dual_scale, double norm_Yfro):
-    return mt_dual_value(alpha, n_samples, n_tasks, R, Y, dual_scale, norm_Yfro)
+# # for UT
+# def mt_dual_c(double alpha, int n_samples, int n_tasks, double[:, ::1] R,
+#                    double[:, ::1] Y, double dual_scale, double norm_Yfro):
+#     return mt_dual_value(alpha, n_samples, n_tasks, R, Y, dual_scale, norm_Yfro)
 
 
 @cython.boundscheck(False)
@@ -206,7 +212,6 @@ def a5g_mt(double[::1, :] X,
            int strategy=3,
            int batch_size=10
            ):
-    # assert fortran
     cdef double t0 = time.time()
     cdef int n_samples = X.shape[0]
     cdef int n_features = X.shape[1]
@@ -226,6 +231,7 @@ def a5g_mt(double[::1, :] X,
     cdef double[:] prios = np.empty(n_features)
     cdef double[:, ::1] XtY = np.dot(X.T, Y)
     cdef double scal
+    cdef int with_theta = 1
     cdef double tmp
     cdef int tmpint
 
@@ -290,19 +296,19 @@ def a5g_mt(double[::1, :] X,
 
         # Compute dual rescaling to make R feasible
         # use preallocated vector Xj_Theta for this (in fact it contains Xj_R)
-        dual_norm_XtR = 0.
-        for j in range(n_features):
-            for t in range(n_tasks):
-                Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc, &R[0, t], &n_tasks)
-            tmp = dnrm2(&n_tasks, &Xj_Theta[0], &inc)
-            if tmp > dual_norm_XtR:
-                dual_norm_XtR = tmp
-
-        dual_scale = max(alpha, dual_norm_XtR)
+        # dual_norm_XtR = 0.
+        # for j in range(n_features):
+        #     for t in range(n_tasks):
+        #         Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc, &R[0, t], &n_tasks)
+        #     tmp = dnrm2(&n_tasks, &Xj_Theta[0], &inc)
+        #     if tmp > dual_norm_XtR:
+        #         dual_norm_XtR = tmp
+        #
+        # dual_scale = max(alpha, dual_norm_XtR)
+        dual_scale = 12
 
         d_obj = mt_dual_value(alpha, n_samples, n_tasks, R,
-                              Y, dual_scale, norm_Yfro)
-
+                              Y, dual_scale, norm_Yfro, Theta, with_theta)
 
         if d_obj > highest_d_obj:
             highest_d_obj = d_obj
@@ -426,6 +432,7 @@ cdef double gram_mt_fast(int n_samples,
     cdef double dual_scale
     cdef double d_obj
     cdef double highest_d_obj = 0.
+    cdef int with_theta = 0
 
     cdef double[:] tmp = np.zeros(n_tasks, dtype=np.float64)
     cdef double[:] update = np.zeros(n_tasks, dtype=np.float64)
@@ -442,7 +449,8 @@ cdef double gram_mt_fast(int n_samples,
                 tmpsum += gram[j, k] * Beta[C[k], t]
             gradients[j, t] = tmpsum
 
-    assert batch_size <= ws_size
+    if batch_size > ws_size:
+        batch_size = ws_size
     assert strategy in (1, 2, 3)
     srand(seed)
 
@@ -463,8 +471,10 @@ cdef double gram_mt_fast(int n_samples,
                                              &X[i, 0], &n_samples,
                                              &Beta[0, t], &n_tasks)
 
+            # we don't use Theta directly so we pass Y as a filler
+            # and with_theta = 0
             d_obj = mt_dual_value(alpha, n_samples, n_tasks, R, Y,
-                                  dual_scale, norm_Yfro)
+                                  dual_scale, norm_Yfro, Y, with_theta)
             if n_updates == (gap_spacing - 1) or d_obj > highest_d_obj:
                 highest_d_obj = d_obj
 

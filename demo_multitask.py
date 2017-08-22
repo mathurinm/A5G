@@ -13,7 +13,7 @@ n_tasks = Y.shape[1]
 assert np.isfortran(X)
 Y = Y / norm(Y, ord='fro')
 alpha_max = np.max(norm(np.dot(X.T, Y), axis=1, ord=2))
-alpha_div = 10
+alpha_div = 2
 alpha = alpha_max / alpha_div
 
 
