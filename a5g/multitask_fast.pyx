@@ -233,14 +233,14 @@ def a5g_mt(double[::1, :] X,
     cdef int n_disabled = 0
 
     cdef double[:, ::1] Beta = np.empty([n_features, n_tasks])
-    for j in range(n_features):
-        for k in range(n_tasks):
-            Beta[j, k] = Beta_init[j, k]
+    tmpint = n_features * n_tasks
+    dcopy(&tmpint, &Beta_init[0, 0], &inc, &Beta[0, 0], &inc)
+
     cdef double[:, ::1] R = Y - np.dot(X, Beta)
     cdef double[:, ::1] Ksi = np.zeros([n_samples, n_tasks])
-    for i in range(n_samples):
-        for t in range(n_tasks):
-            Ksi[i, t] = R[i, t] / alpha
+    tmp = 1. / alpha
+    tmpint = n_samples * n_tasks
+    daxpy(&tmpint, &tmp, &R[0, 0], &inc, &Ksi[0, 0], &inc)
     cdef double[:, ::1] Theta = np.zeros([n_samples, n_tasks])
 
     # preallocating vectors used in mt_set_feature_prios and mt_compute_alpha
@@ -276,9 +276,11 @@ def a5g_mt(double[::1, :] X,
             print("WARNING scal=0, d_obj will stay the same, \
                   this should not happen ")
         else:
-            for i in range(n_samples):
-                for k in range(n_tasks):
-                    Theta[i, k] = scal * Ksi[i, k] + (1 - scal) * Theta[i, k]
+            tmpint = n_samples * n_tasks
+            # Theta = scal * Ksi + (1 - scal) * Theta
+            tmp = 1. - scal
+            dscal(&tmpint, &tmp, &Theta[0, 0], &inc)
+            daxpy(&tmpint, &scal, &Ksi[0, 0], &inc, &Theta[0, 0], &inc)
 
 
         # Compute dual rescaling to make R feasible
@@ -359,10 +361,11 @@ def a5g_mt(double[::1, :] X,
                                  norm_Yfro, tol_inner, max_updates, gap_spacing,
                                  strategy, batch_size, verbose=verbose)
 
+        # Ksi = R / dual_scale
         tmpsum = 1. / dual_scale
-        for i in range(n_samples):
-            for t in range(n_tasks):
-                Ksi[i, t] = R[i, t] * tmpsum
+        tmpint = n_samples * n_tasks
+        dcopy(&tmpint, &R[0, 0], &inc, &Ksi[0, 0], &inc)
+        dscal(&tmpint, &tmpsum, &Ksi[0, 0], &inc)
 
     else:
         print("!!!!!!!! Outer solver did not converge !!!!!!!!")
