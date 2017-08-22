@@ -138,12 +138,12 @@ def compute_gram(int n_samples, int ws_size, int[:] C, double[::1, :] X):
 cdef void mt_set_feature_prios(int n_samples, int n_features,
                                int n_tasks, double[:, ::1] Theta,
                                double[::1, :] X, double * norms_X_col,
-                               double * prios, int * disabled, double radius):
+                               double * prios, int * disabled, double radius,
+                               double * Xj_Theta):
     cdef int j  # features
     cdef int t  # tasks
     cdef int inc = 1
     cdef double tmp
-    cdef double[:] Xj_Theta = np.empty(n_tasks)
     for j in range(n_features):
         if disabled[j] == 1:
             prios[j] = radius + j
@@ -160,32 +160,29 @@ cdef void mt_set_feature_prios(int n_samples, int n_features,
 @cython.cdivision(True)
 cdef double mt_compute_alpha(int n_samples, int n_features, int n_tasks,
                              double[:, ::1] Theta, double[:, ::1] Ksi,
-                             double[::1, :] X,
-                             int * disabled):
-    # TODO implement
+                             double[::1, :] X, int * disabled,
+                             double * Xj_Ksi, double * Xj_Theta):
     cdef int j  # features
     cdef int t  # tasks
     cdef double scal = 1.
     cdef int inc = 1
     cdef double tmp
-    cdef double[:] XjKsi = np.empty(n_tasks)
-    cdef double[:] XjTheta = np.empty(n_tasks)
 
     for j in range(n_features):
         if disabled[j]:
             continue
         for t in range(n_tasks):
             # Ksi is not Fortran
-            XjKsi[t] = ddot(&n_samples, &X[0, j], &inc,
+            Xj_Ksi[t] = ddot(&n_samples, &X[0, j], &inc,
                             &Ksi[0, t], &n_tasks)
-        if dnrm2(&n_tasks, &XjKsi[0], &inc) > 1. + 1e-12:
-            XjTheta[t] = ddot(&n_samples, &X[0, j], &inc,
+        if dnrm2(&n_tasks, &Xj_Ksi[0], &inc) > 1. + 1e-12:
+            Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc,
                               &Theta[0, t], &n_tasks)
-            tmp = dnrm2(&n_tasks, &XjTheta[0], &inc)
+            tmp = dnrm2(&n_tasks, &Xj_Theta[0], &inc)
             # Theta should be feasible:
             if tmp > 1.:
                 tmp = 1
-            scal = fmin(scal, (1. - tmp) / norm_difference(n_tasks, &XjTheta[0], &XjKsi[0]))
+            scal = fmin(scal, (1. - tmp) / norm_difference(n_tasks, &Xj_Theta[0], &Xj_Ksi[0]))
     return scal
 
 
@@ -246,6 +243,10 @@ def a5g_mt(double[::1, :] X,
             Ksi[i, t] = R[i, t] / alpha
     cdef double[:, ::1] Theta = np.zeros([n_samples, n_tasks])
 
+    # preallocating vectors used in mt_set_feature_prios and mt_compute_alpha
+    cdef double[:] Xj_Ksi = np.empty(n_tasks)
+    cdef double[:] Xj_Theta = np.empty(n_tasks)
+
     highest_d_obj = 0
     ws_size = min_ws_size
 
@@ -262,7 +263,8 @@ def a5g_mt(double[::1, :] X,
 
     for it in range(max_iter):
         scal = mt_compute_alpha(n_samples, n_features, n_tasks,
-                                Theta, Ksi, X, &disabled[0])
+                                Theta, Ksi, X, &disabled[0], &Xj_Ksi[0],
+                                &Xj_Theta[0])
         if scal < 0:
             raise ValueError("scal= %f < 0")
 
@@ -279,9 +281,16 @@ def a5g_mt(double[::1, :] X,
                     Theta[i, k] = scal * Ksi[i, k] + (1 - scal) * Theta[i, k]
 
 
-        # TODO put this in cython
-        XtR = np.dot(X.T, R)
-        dual_norm_XtR = np.max(np.linalg.norm(XtR, axis=1))
+        # Compute dual rescaling to make R feasible
+        # use preallocated vector Xj_Theta for this (in fact it contains Xj_R)
+        dual_norm_XtR = 0.
+        for j in range(n_features):
+            for t in range(n_tasks):
+                Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc, &R[0, t], &n_tasks)
+            tmp = dnrm2(&n_tasks, &Xj_Theta[0], &inc)
+            if tmp > dual_norm_XtR:
+                dual_norm_XtR = tmp
+
         dual_scale = max(alpha, dual_norm_XtR)
 
         d_obj = mt_dual_value(alpha, n_samples, n_tasks, R,
@@ -310,7 +319,7 @@ def a5g_mt(double[::1, :] X,
         radius = sqrt(2. * gap) / alpha
         mt_set_feature_prios(n_samples, n_features, n_tasks,
                              Theta, X, &norms_X_col[0],
-                             &prios[0], &disabled[0], radius)
+                             &prios[0], &disabled[0], radius, &Xj_Theta[0])
 
         ws_size = 0
         for j in range(n_features):

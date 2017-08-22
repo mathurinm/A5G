@@ -1,4 +1,5 @@
 import numpy as np
+import time
 from numpy.linalg import norm
 from a5g import a5g_mt
 from a5g.utils import mt_primal, mt_dual, norml2inf
@@ -16,9 +17,12 @@ alpha_div = 10
 alpha = alpha_max / alpha_div
 
 
+t0 = time.time()
 Beta_init = np.zeros([n_features, n_tasks])
 res = a5g_mt(X, Y, alpha, Beta_init, max_iter=30, strategy=3, min_ws_size=20,
              max_updates=50000, screening=1)
+dur_a5g = time.time() - t0
+print("A5G time %.4f s" % dur_a5g)
 Beta = res[0]
 R = res[1]
 
