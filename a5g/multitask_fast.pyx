@@ -31,21 +31,19 @@ cdef inline int is_zero(int length, double * vector) nogil:
 @cython.wraparound(False)
 @cython.cdivision(True)
 cdef double mt_primal_value(double alpha, int n_samples, int n_tasks,
-                            int n_features, double[:, ::1] R,
+                            int n_features, double[::1, :] R,
                             double[:, ::1] Beta) nogil:
     cdef double p_obj = 0
-    cdef int ii
-    cdef int jj
+    cdef int t
+    cdef int j
     cdef int inc = 1
-    for jj in range(n_features):
+    cdef int tmpint = n_samples * n_tasks
+    for j in range(n_features):
         # Beta is C ordered
-        p_obj += dnrm2(&n_tasks, &Beta[jj, 0], &inc)
+        p_obj += dnrm2(&n_tasks, &Beta[j, 0], &inc)
     p_obj *= alpha
 
-    # compute fro norm of R line by line
-    for ii in range(n_samples):
-        # R is C ordered
-        p_obj += dnrm2(&n_tasks, &R[ii, 0], &inc) ** 2 / 2
+    p_obj += dnrm2(&tmpint, &R[0, 0], &inc) ** 2 / 2
     return p_obj
 
 # # for UT
@@ -57,20 +55,20 @@ cdef double mt_primal_value(double alpha, int n_samples, int n_tasks,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-cdef double mt_dual_value(double alpha, int n_samples, int n_tasks, double[:, ::1] R,
-                   double[:, ::1] Y, double dual_scale, double norm_Yfro,
-                   double[:, ::1] Theta, int with_theta) nogil:
+cdef double mt_dual_value(double alpha, int n_samples, int n_tasks, double[::1, :] R,
+                   double[::1, :] Y, double dual_scale, double norm_Yfro,
+                   double[::1, :] Theta, int with_theta) nogil:
     cdef double d_obj = 0
     cdef int ii
-    cdef int jj
+    cdef int t
     if with_theta:
-        for ii in range(n_samples):
-            for jj in range(n_tasks):
-                d_obj -= (Y[ii, jj] / alpha - Theta[ii, jj]) ** 2
+        for t in range(n_tasks):
+            for ii in range(n_samples):
+                d_obj -= (Y[ii, t] / alpha - Theta[ii, t]) ** 2
     else:
-        for ii in range(n_samples):
-            for jj in range(n_tasks):
-                d_obj -= (Y[ii, jj] / alpha - R[ii, jj] / dual_scale) ** 2
+        for t in range(n_tasks):
+            for ii in range(n_samples):
+                d_obj -= (Y[ii, t] / alpha - R[ii, t] / dual_scale) ** 2
     d_obj *= 0.5 * alpha ** 2
     d_obj += 0.5 * norm_Yfro
 
@@ -142,7 +140,7 @@ def compute_gram(int n_samples, int ws_size, int[:] C, double[::1, :] X):
 @cython.wraparound(False)
 @cython.cdivision(True)
 cdef void mt_set_feature_prios(int n_samples, int n_features,
-                               int n_tasks, double[:, ::1] Theta,
+                               int n_tasks, double[::1, :] Theta,
                                double[::1, :] X, double * norms_X_col,
                                double * prios, int * disabled, double radius,
                                double * Xj_Theta):
@@ -155,8 +153,8 @@ cdef void mt_set_feature_prios(int n_samples, int n_features,
             prios[j] = radius + j
         else:
             for t in range(n_tasks):
-                # Theta is not fortran
-                Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc, &Theta[0, t], &n_tasks)
+                # Theta is fortran
+                Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc, &Theta[0, t], &inc)
             tmp = dnrm2(&n_tasks, &Xj_Theta[0], &inc)
         prios[j] = (1 - tmp) / norms_X_col[j]
 
@@ -165,7 +163,7 @@ cdef void mt_set_feature_prios(int n_samples, int n_features,
 @cython.wraparound(False)
 @cython.cdivision(True)
 cdef double mt_compute_alpha(int n_samples, int n_features, int n_tasks,
-                             double[:, ::1] Theta, double[:, ::1] Ksi,
+                             double[::1, :] Theta, double[::1, :] Ksi,
                              double[::1, :] X, int * disabled,
                              double * Xj_Ksi, double * Xj_Theta):
     cdef int j  # features
@@ -178,14 +176,14 @@ cdef double mt_compute_alpha(int n_samples, int n_features, int n_tasks,
         if disabled[j]:
             continue
         for t in range(n_tasks):
-            # Ksi is not Fortran
+            # Ksi is fortran
             Xj_Ksi[t] = ddot(&n_samples, &X[0, j], &inc,
-                            &Ksi[0, t], &n_tasks)
+                            &Ksi[0, t], &inc)
         # rescaling needed only if constraint is violated by j
         if dnrm2(&n_tasks, &Xj_Ksi[0], &inc) > 1. + 1e-12:
             for t in range(n_tasks):
                 Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc,
-                                  &Theta[0, t], &n_tasks)
+                                  &Theta[0, t], &inc)
             tmp = dnrm2(&n_tasks, &Xj_Theta[0], &inc)
             # Theta should be feasible:
             if tmp > 1.:
@@ -198,7 +196,7 @@ cdef double mt_compute_alpha(int n_samples, int n_features, int n_tasks,
 @cython.wraparound(False)
 @cython.cdivision(True)
 def a5g_mt(double[::1, :] X,
-           double[:, ::1] Y,
+           double[::1, :] Y,
            double alpha,
            double[:, ::1] Beta_init,
            int max_iter=50,
@@ -245,13 +243,13 @@ def a5g_mt(double[::1, :] X,
     tmpint = n_features * n_tasks
     dcopy(&tmpint, &Beta_init[0, 0], &inc, &Beta[0, 0], &inc)
 
-    cdef double[:, ::1] R = Y - np.dot(X, Beta)
-    cdef double[:, ::1] Ksi = np.zeros([n_samples, n_tasks])
+    cdef double[::1, :] R = np.asfortranarray(Y - np.dot(X, Beta))
+    cdef double[::1, :] Ksi = np.zeros([n_samples, n_tasks], order='F')
     # Ksi = R / alpha
     tmp = 1. / alpha
     tmpint = n_samples * n_tasks
     daxpy(&tmpint, &tmp, &R[0, 0], &inc, &Ksi[0, 0], &inc)
-    cdef double[:, ::1] Theta = np.zeros([n_samples, n_tasks])
+    cdef double[::1, :] Theta = np.zeros([n_samples, n_tasks], order='F')
 
     # preallocating vectors used in mt_set_feature_prios and mt_compute_alpha
     cdef double[:] Xj_Ksi = np.empty(n_tasks)
@@ -392,10 +390,10 @@ cdef double gram_mt_fast(int n_samples,
                   int n_tasks,
                   int ws_size,
                   double[::1, :] X,
-                  double[:, ::1] Y,
+                  double[::1, :] Y,
                   double alpha,
                   double[:, ::1] Beta,
-                  double[:, ::1] R,
+                  double[::1, :] R,
                   int[:] C,
                   double[::1, :] gram,
                   double[:, ::1] XtY,
