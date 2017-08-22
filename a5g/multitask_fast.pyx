@@ -175,9 +175,11 @@ cdef double mt_compute_alpha(int n_samples, int n_features, int n_tasks,
             # Ksi is not Fortran
             Xj_Ksi[t] = ddot(&n_samples, &X[0, j], &inc,
                             &Ksi[0, t], &n_tasks)
+        # rescaling needed only if constraint is violated by j
         if dnrm2(&n_tasks, &Xj_Ksi[0], &inc) > 1. + 1e-12:
-            Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc,
-                              &Theta[0, t], &n_tasks)
+            for t in range(n_tasks):
+                Xj_Theta[t] = ddot(&n_samples, &X[0, j], &inc,
+                                  &Theta[0, t], &n_tasks)
             tmp = dnrm2(&n_tasks, &Xj_Theta[0], &inc)
             # Theta should be feasible:
             if tmp > 1.:
@@ -232,12 +234,14 @@ def a5g_mt(double[::1, :] X,
     cdef int[:] disabled = np.zeros(n_features, dtype=np.int32)
     cdef int n_disabled = 0
 
+    # Beta = Beta_init.copy()
     cdef double[:, ::1] Beta = np.empty([n_features, n_tasks])
     tmpint = n_features * n_tasks
     dcopy(&tmpint, &Beta_init[0, 0], &inc, &Beta[0, 0], &inc)
 
     cdef double[:, ::1] R = Y - np.dot(X, Beta)
     cdef double[:, ::1] Ksi = np.zeros([n_samples, n_tasks])
+    # Ksi = R / alpha
     tmp = 1. / alpha
     tmpint = n_samples * n_tasks
     daxpy(&tmpint, &tmp, &R[0, 0], &inc, &Ksi[0, 0], &inc)
@@ -268,11 +272,12 @@ def a5g_mt(double[::1, :] X,
         if scal < 0:
             raise ValueError("scal= %f < 0")
 
-        if scal == 1:
+        if scal == 1.:
             if verbose:
                 print("Feasible Ksi, complicated scaling might not be needed")
+            # Theta = Ksi
             dcopy(&tmpint, &Ksi[0, 0], &inc, &Theta[0, 0], &inc)
-        elif scal <= 0:
+        elif scal == 0.:
             print("WARNING scal=0, d_obj will stay the same, \
                   this should not happen ")
         else:
