@@ -433,6 +433,7 @@ cdef double gram_mt_fast(int n_samples,
     cdef int with_theta = 0
 
     cdef double[:] tmp = np.zeros(n_tasks, dtype=np.float64)
+    cdef double tmpdouble
     cdef double[:] update = np.zeros(n_tasks, dtype=np.float64)
     cdef double norm_diff = 0.
     cdef double best_norm_diff = 0.
@@ -463,11 +464,17 @@ cdef double gram_mt_fast(int n_samples,
 
             dual_scale = fmax(alpha, dual_norm_XtR)
             # R = Y - np.dot(X, Beta)
-            for i in range(n_samples):
-                for t in range(n_tasks):
-                    R[i, t] = Y[i, t] - ddot(&n_features,
-                                             &X[i, 0], &n_samples,
-                                             &Beta[0, t], &n_tasks)
+
+            tmpint = n_samples * n_tasks
+            dcopy(&tmpint, &Y[0, 0], &inc, &R[0, 0], &inc)
+            for t in range(n_tasks):
+                for j in range(ws_size):
+                    tmpdouble = - Beta[C[j], t]
+                    daxpy(&n_samples, &tmpdouble, &X[0, C[j]], &inc, &R[0, t], &inc)
+
+#                                             ddot(&n_features,
+#                                              &X[i, 0], &n_samples,
+#                                              &Beta[0, t], &n_tasks)
 
             # we don't use Theta directly so we pass Y as a filler
             # and with_theta = 0
@@ -545,8 +552,9 @@ cdef double gram_mt_fast(int n_samples,
 
             # update all gradients
             for k in range(ws_size):
-                for t in range(n_tasks):
-                    gradients[k, t] += gram[k, ii] * tmp[t]
+                daxpy(&n_tasks, &gram[ii, k], &tmp[0], &inc, &gradients[k, 0], &inc)
+#                 for t in range(n_tasks):
+#                     gradients[k, t] += gram[k, ii] * tmp[t]
 
 
     else:
