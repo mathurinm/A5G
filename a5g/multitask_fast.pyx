@@ -94,9 +94,12 @@ cdef void block_ST(int n_tasks, double * w, double * grad_k, double alpha,
     cdef int inc = 1
     cdef int t
     cdef double scaling
+    cdef double tmp = - 1. / norm_Xk2
     # w_new = w - grad_k / norm_Xk2
-    for t in range(n_tasks):
-        w_new[t] = w[t] - grad_k[t] / norm_Xk2
+    dcopy(&n_tasks, &w[0], &inc, &w_new[0], &inc)
+    daxpy(&n_tasks, &tmp, &grad_k[0], &inc, &w_new[0], &inc)
+#     for t in range(n_tasks):
+#         w_new[t] = w[t] - grad_k[t] / norm_Xk2
 
     cdef double norm_tmp = dnrm2(&n_tasks, &w_new[0], &inc)
 
@@ -111,13 +114,14 @@ cdef void block_ST(int n_tasks, double * w, double * grad_k, double alpha,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-cdef double norm_difference(int length, double * u, double * v):
+cdef double norm_difference(int length, double * u, double * v, double * tmp_norm_diff):
     """Compute ||u - v||_2"""
-    cdef double nrm = 0.
-    cdef int i
-    for i in range(length):
-        nrm += (v[i] - u[i]) ** 2
-    return sqrt(nrm)
+    cdef int inc = 1
+    cdef double minus_one = - 1.  # <3 blas
+    dcopy(&length, &v[0], &inc, &tmp_norm_diff[0], &inc)
+    daxpy(&length, &minus_one, &u[0], &inc, &tmp_norm_diff[0], &inc)
+
+    return dnrm2(&length, &tmp_norm_diff[0], &inc)
 
 
 @cython.boundscheck(False)
@@ -171,6 +175,7 @@ cdef double mt_compute_alpha(int n_samples, int n_features, int n_tasks,
     cdef double scal = 1.
     cdef int inc = 1
     cdef double tmp
+    cdef double [:] tmp_norm_diff = np.empty(n_tasks)
 
     for j in range(n_features):
         if disabled[j]:
@@ -188,7 +193,7 @@ cdef double mt_compute_alpha(int n_samples, int n_features, int n_tasks,
             # Theta should be feasible:
             if tmp > 1.:
                 tmp = 1
-            scal = fmin(scal, (1. - tmp) / norm_difference(n_tasks, &Xj_Theta[0], &Xj_Ksi[0]))
+            scal = fmin(scal, (1. - tmp) / norm_difference(n_tasks, &Xj_Theta[0], &Xj_Ksi[0], &tmp_norm_diff[0]))
     return scal
 
 
@@ -385,7 +390,7 @@ def a5g_mt(double[::1, :] X,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-cdef double gram_mt_fast(int n_samples,
+def gram_mt_fast(int n_samples,
                   int n_features,
                   int n_tasks,
                   int ws_size,
@@ -432,9 +437,10 @@ cdef double gram_mt_fast(int n_samples,
     cdef double highest_d_obj = 0.
     cdef int with_theta = 0
 
-    cdef double[:] tmp = np.zeros(n_tasks, dtype=np.float64)
+    cdef double[:] tmp = np.zeros(n_tasks)
+    cdef double[:] tmp_norm_diff = np.zeros(n_tasks)
     cdef double tmpdouble
-    cdef double[:] update = np.zeros(n_tasks, dtype=np.float64)
+    cdef double[:] update = np.zeros(n_tasks)
     cdef double norm_diff = 0.
     cdef double best_norm_diff = 0.
 
@@ -485,6 +491,8 @@ cdef double gram_mt_fast(int n_samples,
 
             gap = mt_primal_value(alpha, n_samples, n_tasks, n_features, R,
                                   Beta) - highest_d_obj
+            if verbose:
+                print("Gap %.2e" % gap)
             if gap < eps:
                 if verbose:
                     print("Inner: early exit at update %d, gap: %.2e < %.2e" % \
@@ -502,7 +510,7 @@ cdef double gram_mt_fast(int n_samples,
                 block_ST(n_tasks, &Beta[k, 0], &gradients[j, 0],
                          alpha, gram[j, j], &Beta_k_new[0])
                 norm_diff = norm_difference(n_tasks, &Beta_k_new[0],
-                                            &Beta[k, 0])
+                                            &Beta[k, 0], &tmp_norm_diff[0])
 
                 if j == 0 or norm_diff > best_norm_diff:
                     best_norm_diff = norm_diff
@@ -531,7 +539,7 @@ cdef double gram_mt_fast(int n_samples,
                 block_ST(n_tasks, &Beta[k, 0], &gradients[j, 0],
                                   alpha, gram[j, j], &Beta_k_new[0])
                 norm_diff = norm_difference(n_tasks, &Beta_k_new[0],
-                                            &Beta[k, 0])
+                                            &Beta[k, 0], &tmp_norm_diff[0])
 
                 if j == start or norm_diff > best_norm_diff:
                     best_norm_diff = norm_diff
