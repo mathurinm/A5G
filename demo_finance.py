@@ -15,7 +15,8 @@ if False:
         X, y = load_svmlight_file(f, 4272227)
         X = sparse.csc_matrix(X)
 
-        NNZ = np.diff(X.indptr)
+        NNZ = np.diff(X.indptr)  # number of non zero elements per feature
+        # keep only features with >=3 non zero values
         X_new = X[:, NNZ >= 3]
 
         sparse.save_npz("./data/finance_filtered", X_new)
@@ -26,10 +27,10 @@ else:
 
 preprocess = True
 if preprocess is True:
-    X_new = preprocessing.normalize(X_new, axis=0)
+    X_new = preprocessing.normalize(X_new, axis=0)  #
     y -= np.mean(y)
-    y /= norm(y, ord=2)
-# very important
+    y /= norm(y, ord=2)  # normalize y to get a first duality gap of 0.5
+# very important for sparse/sparse dot products
 X_new.sort_indices()
 
 
