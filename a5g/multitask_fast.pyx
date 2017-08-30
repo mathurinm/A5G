@@ -205,15 +205,15 @@ def a5g_mt(double[::1, :] X,
            double alpha,
            double[:, ::1] Beta_init,
            int max_iter=50,
+           int gap_spacing=1000,
+           int max_updates=50000,
+           int batch_size=10,
            double tol_ratio_inner=0.3,
            double tol=1e-6,
            int min_ws_size=10,
-           int verbose=1,
            int screening=0,
-           int max_updates=5 * 10**4,
-           int gap_spacing=1000,
            int strategy=3,
-           int batch_size=10
+           int verbose=0,
            ):
     cdef double t0 = time.time()
     cdef int n_samples = X.shape[0]
