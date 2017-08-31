@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.sparse
+from sklearn.linear_model import MultiTaskLasso
 from .lasso_fast import a5g_lasso, a5g_lasso_sparse
+from .multitask_fast import a5g_mt
 
 
 def lasso_path(X, y, alphas, tol,
@@ -54,3 +56,49 @@ def lasso_path(X, y, alphas, tol,
             print("-------------WARNING: did not converge, t = %d" % t)
             print("gap = %.1e , tol = %.1e" % (final_gaps[t], tol))
     return betas, final_gaps
+
+
+def lasso_path_mt(X, Y, alphas, tol,
+                  screening=True, gap_spacing=1000,
+                  batch_size=10, max_updates=50000, max_iter=100,
+                  verbose=False,
+                  verbose_solver=False):
+    n_alphas = len(alphas)
+    n_samples, n_features = X.shape
+    n_tasks = Y.shape[1]
+
+    Betas = np.zeros((n_alphas, n_features, n_tasks))
+    final_gaps = np.zeros(n_alphas)
+
+    # skip alpha_max and use decreasing alphas
+    for t in range(1, n_alphas):
+        if verbose:
+            print("--------------------")
+            print("Computing %dth alpha" % (t + 1))
+        if t > 1:
+            Beta_init = Betas[t - 1].copy()
+            min_ws_size = np.sum(Beta_init.any(axis=0))
+            min_ws_size = max(1, min_ws_size)
+        else:
+            Beta_init = Betas[t]
+            min_ws_size = 10
+
+        alpha = alphas[t]
+        sol = a5g_mt(X, Y, alpha, Beta_init,
+                     max_iter, gap_spacing, max_updates, batch_size,
+                     tol=tol, verbose=verbose_solver,
+                     strategy=3, screening=screening,
+                     min_ws_size=min_ws_size)
+
+        Betas[t], final_gaps[t] = sol[0], sol[2][-1]  # last gap
+        if final_gaps[t] > tol:
+            print("-------------WARNING: did not converge, t = %d" % t)
+            print("gap = %.1e , tol = %.1e" % (final_gaps[t], tol))
+    return Betas, final_gaps
+
+
+def sklearn_path_mt(X, Y, alphas, tol):
+    n_samples = X.shape[0]
+    alphas_scaled = alphas / n_samples
+    clf = MultiTaskLasso(alpha=None)
+    return clf.path(X, Y, alphas=alphas_scaled, tol=tol, l1_ratio=1)

@@ -1,46 +1,12 @@
 import numpy as np
 import time
-import matplotlib.pyplot as plt
 import blitzl1
 from scipy import sparse
 from sklearn.datasets.mldata import fetch_mldata
 from sklearn import preprocessing
 from numpy.linalg import norm
 from a5g import lasso_path
-from a5g.utils import configure_plt
-
-
-def plot_res(times_noscreen, times_screen_, times_b, tols):
-    fig, ax = plt.subplots(figsize=(7, 3.7))
-    # if I do color='r' in ax.bar() it's not the red I want so I use this hack:
-    prop_list = list(plt.rcParams['axes.prop_cycle'])
-    blue = prop_list[0]['color']
-    green = prop_list[1]['color']
-    red = prop_list[2]['color']
-    width = 0.2
-    ind = np.arange(len(tols))
-    rects1 = ax.bar(ind - 1 * width, times_noscreen, width,
-                    label='A5G w. safe screening',
-                    color=blue)
-    rects2 = ax.bar(ind + 0 * width, times_screen_, width,
-                    label='A5G w/o safe screening',
-                    color=green)
-    rects3 = ax.bar(ind + 1 * width, times_b, width,
-                    label='Blitz',
-                    color=red)
-
-    # add some text for labels, title and axes ticks
-    ax.set_ylabel('Time (s)')
-    # ax.set_title('Comparison of Blitz and A5G on Leukemia')
-    ax.set_xticks(ind + width / 2)
-    from matplotlib.ticker import FormatStrFormatter
-    ax.xaxis.set_major_formatter(FormatStrFormatter('%.3e'))
-    ax.set_xticklabels(["%.0e" % tol for tol in tols])
-
-    ax.set_xlabel(r"$\bar{\epsilon}$")
-    plt.legend(loc='best')
-    plt.tight_layout()
-    plt.show()
+from a5g.utils import configure_plt, plot_res
 
 
 def blitz_path(X, y, alphas, eps, max_iter=100):
