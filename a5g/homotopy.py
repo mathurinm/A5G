@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse
+import blitzl1
 from sklearn.linear_model import MultiTaskLasso
 from .lasso_fast import a5g_lasso, a5g_lasso_sparse
 from .multitask_fast import a5g_mt
@@ -102,3 +103,31 @@ def sklearn_path_mt(X, Y, alphas, tol):
     alphas_scaled = alphas / n_samples
     clf = MultiTaskLasso(alpha=None)
     return clf.path(X, Y, alphas=alphas_scaled, tol=tol, l1_ratio=1)
+
+
+def blitz_path(X, y, alphas, eps, max_iter=100):
+    n_samples, n_features = X.shape
+    n_alphas = alphas.shape[0]
+
+    tol = eps * np.linalg.norm(y) ** 2
+    blitzl1.set_tolerance(tol)
+    blitzl1.set_use_intercept(0)
+    prob = blitzl1.LassoProblem(X, y)
+
+    blitzl1._num_iterations = max_iter
+    betas = np.zeros((n_alphas, n_features))
+    gaps = np.zeros(n_alphas)
+    beta_init = np.zeros(n_features)
+
+    for t in range(n_alphas):
+        sol = prob.solve(alphas[t], initial_x=beta_init)
+        beta_init = np.copy(sol.x)
+        betas[t, :] = sol.x
+        gaps[t] = sol.duality_gap
+
+        if abs(gaps[t]) > tol:
+
+            print("warning: did not converge, t = ", t)
+            print("gap = ", gaps[t], "eps = ", eps)
+
+    return betas, gaps
