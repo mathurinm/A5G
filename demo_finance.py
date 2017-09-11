@@ -3,9 +3,9 @@ import time
 from scipy import sparse
 import numpy as np
 from numpy.linalg import norm
-from sklearn import preprocessing
 import blitzl1
 from a5g.lasso_fast import a5g_lasso_sparse
+from a5g.utils import preprocess_data
 
 
 if False:
@@ -26,12 +26,8 @@ else:
     y = np.load("./data/finance_target.npy")
 
 preprocess = True
-if preprocess is True:
-    X_new = preprocessing.normalize(X_new, axis=0)  #
-    y -= np.mean(y)
-    y /= norm(y, ord=2)  # normalize y to get a first duality gap of 0.5
-# very important for sparse/sparse dot products
-X_new.sort_indices()
+if preprocess:
+    X_new, y = preprocess_data(X_new, y)
 
 
 alpha_max = norm(X_new.T.dot(y), ord=np.inf)
@@ -41,7 +37,6 @@ alpha_div = 4
 alpha = alpha_max / alpha_div
 
 tol = 1e-8
-
 max_iter = 40
 max_updates = 50000
 batch_size = 5
@@ -51,10 +46,11 @@ min_ws_size = 100
 
 beta_init = np.zeros(n_features)
 t0 = time.time()
-a5g_res = a5g_lasso_sparse(X_new.data, X_new.indices, X_new.indptr, y, alpha, beta_init,
-                     max_iter, gap_spacing, max_updates, batch_size,
-                     tol_ratio_inner=tol_ratio_inner, tol=tol, verbose=True,
-                     strategy=3, min_ws_size=min_ws_size, screening=0)
+a5g_res = a5g_lasso_sparse(X_new.data, X_new.indices, X_new.indptr, y, alpha,
+                           beta_init, max_iter, gap_spacing, max_updates,
+                           batch_size, tol_ratio_inner=tol_ratio_inner,
+                           tol=tol, verbose=True, strategy=3,
+                           min_ws_size=min_ws_size, screening=0)
 dur_a5g = time.time() - t0
 print("A5G time %.4f" % (dur_a5g))
 beta = np.array(a5g_res[0])
@@ -75,7 +71,8 @@ assert (p_obj - d_obj) < tol
 
 t0 = time.time()
 prob = blitzl1.LassoProblem(X_new, y)
-blitzl1.set_use_intercept(False)
+blitzl1.set_use_intercept(True)
+blitzl1.set_tolerance(tol)
 sol = prob.solve(alpha)
 print("Blitz time %.3f s" % (time.time() - t0))
 beta_blitz = sol.x[sol.x != 0]

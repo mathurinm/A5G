@@ -1,6 +1,8 @@
 import numpy as np
-from numpy.linalg import norm
 import matplotlib.pyplot as plt
+from scipy import sparse
+from numpy.linalg import norm
+from sklearn import preprocessing
 
 
 def primal(R, beta, alpha):
@@ -107,7 +109,7 @@ def configure_plt():
 
 
 def plot_res(all_times, labels, tols, log=False,
-             bottom=1e-1):
+             bottom=1e-1, savepath=None):
     n_competitors = len(all_times)
     fig, ax = plt.subplots(figsize=(7, 3.7))
     # if I do color='r' in ax.bar() it's not the red I want so I use this hack:
@@ -133,4 +135,22 @@ def plot_res(all_times, labels, tols, log=False,
     ax.set_xlabel(r"$\bar{\epsilon}$")
     plt.legend(loc='best')
     plt.tight_layout()
+    if savepath is not None:
+        plt.savefig(savepath)
     plt.show()
+
+
+def preprocess_data(X, y):
+    y = y.copy()
+    # add constant feature to fit intercept
+    X = preprocessing.add_dummy_feature(X, 1.)
+    # set all feature norms to 1
+    X = preprocessing.normalize(X, axis=0)
+    # center y
+    y -= np.mean(y)
+    # normalize y to get a first duality gap of 0.5
+    y /= np.linalg.norm(y, ord=2)
+    if sparse.issparse(X):
+        X.sort_indices()
+
+    return X, y

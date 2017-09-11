@@ -105,13 +105,13 @@ def sklearn_path_mt(X, Y, alphas, tol):
     return clf.path(X, Y, alphas=alphas_scaled, tol=tol, l1_ratio=1)
 
 
-def blitz_path(X, y, alphas, eps, max_iter=100):
+def blitz_path(X, y, alphas, eps, max_iter=1000, use_intercept=0):
     n_samples, n_features = X.shape
     n_alphas = alphas.shape[0]
 
     tol = eps * np.linalg.norm(y) ** 2
     blitzl1.set_tolerance(tol)
-    blitzl1.set_use_intercept(0)
+    blitzl1.set_use_intercept(use_intercept)
     prob = blitzl1.LassoProblem(X, y)
 
     blitzl1._num_iterations = max_iter
