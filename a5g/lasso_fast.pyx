@@ -1,7 +1,7 @@
 import numpy as np
 import time
 cimport numpy as np
-from scipy.linalg.cython_blas cimport ddot, dasum, daxpy, dnrm2, dcopy
+from scipy.linalg.cython_blas cimport ddot, dasum, daxpy, dnrm2, dcopy, dscal
 from libc.math cimport fabs, sqrt, ceil
 from libc.stdlib cimport rand, srand
 cimport cython
@@ -174,7 +174,9 @@ def a5g_lasso(double[::1, :] X,
     cdef int n_features = X.shape[1]
     cdef double[:] beta = np.empty(n_features)
     cdef double[:] theta = np.zeros(n_samples)
-    cdef double[:] ksi = np.zeros(n_samples)
+    cdef double[:] ksi = np.empty(n_samples)
+    cdef double[:] R = np.empty(n_samples)
+
     cdef int j  # features
     cdef int i  # samples
     cdef int it  # outer loop
@@ -192,11 +194,17 @@ def a5g_lasso(double[::1, :] X,
     cdef int[:] disabled = np.zeros(n_features, dtype=np.int32)
     cdef int n_disabled = 0
 
-    for j in range(n_features):
-        beta[j] = beta_init[j]
+    # beta_init = beta.copy()
+    dcopy(&n_features, &beta_init[0], &inc, &beta[0], &inc)
 
-    for i in range(n_samples):
-        ksi[i] = y[i] / alpha
+    # initialize ksi to (y - X.dot(beta_init)) / alpha
+    dcopy(&n_samples, &y[0], &inc, &ksi[0], &inc)
+    for j in range(n_features):
+        if beta[j] != 0:
+            tmp = - beta[j]
+            daxpy(&n_samples, &tmp, &X[0, j], &inc, &ksi[0], &inc)
+    tmp = 1. / alpha
+    dscal(&n_samples, &tmp, &ksi[0], &inc)
 
     cdef double norm_y2 = dnrm2(&n_samples, &y[0], &inc) ** 2
     cdef double[:] norms_X_col = np.empty(n_features)
@@ -211,10 +219,8 @@ def a5g_lasso(double[::1, :] X,
         invnorm_Xcols_2[j] = 1. / norms_X_col[j] ** 2
         alpha_invnorm_Xcols_2[j] = alpha * invnorm_Xcols_2[j]
 
-
     cdef double[:] times = np.zeros(max_iter)
     cdef double[:] gaps = np.zeros(max_iter)
-    cdef double[:] R = np.zeros(n_samples)
 
     cdef double[::1, :] gram
 
@@ -595,7 +601,9 @@ def a5g_lasso_sparse(double[:] X_data,
     cdef int n_features = beta_init.shape[0]
     cdef double[:] beta = np.empty(n_features)
     cdef double[:] theta = np.zeros(n_samples)
-    cdef double[:] ksi = np.zeros(n_samples)
+    cdef double[:] ksi = np.empty(n_samples)
+    cdef double[:] R = np.zeros(n_samples)
+
     cdef int j  # features
     cdef int i  # samples
     cdef int ii
@@ -630,11 +638,24 @@ def a5g_lasso_sparse(double[:] X_data,
         Xty[j] = tmp
         norms_X_col[j] = sqrt(prov)
 
+    # copy beta_init into beta
     for j in range(n_features):
         beta[j] = beta_init[j]
 
     for i in range(n_samples):
         ksi[i] = y[i] / alpha
+    # initialize ksi to (y - X.dot(beta_init)) / alpha
+    dcopy(&n_samples, &y[0], &inc, &ksi[0], &inc)
+    for j in range(n_features):
+        if beta[j] == 0.:
+            continue
+        else:
+            startptr = X_indptr[j]
+            endptr = X_indptr[j + 1]
+            for ii in range(startptr, endptr):
+                ksi[X_indices[ii]] -= beta[j] * X_data[ii]
+    tmp = 1. / alpha
+    dscal(&n_samples, &tmp, &ksi[0], &inc)
 
     cdef double norm_y2 = dnrm2(&n_samples, &y[0], &inc) ** 2
     cdef double[:] invnorm_Xcols_2 = np.empty(n_features)
@@ -647,7 +668,6 @@ def a5g_lasso_sparse(double[:] X_data,
 
     cdef double[:] times = np.zeros(max_iter)
     cdef double[:] gaps = np.zeros(max_iter)
-    cdef double[:] R = np.zeros(n_samples)
 
     cdef double[::1, :] gram
 
@@ -666,7 +686,9 @@ def a5g_lasso_sparse(double[:] X_data,
                 theta[i] = scal * ksi[i] + (1. - scal) * theta[i]
 
         # compute residuals :
+        # 1) R = y.copy()
         dcopy(&n_samples, &y[0], &inc, &R[0], &inc)
+        # 2) R -= X.dot(beta)
         for j in range(n_features):
             if beta[j] == 0.:
                 continue
