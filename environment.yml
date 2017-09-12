@@ -1,0 +1,14 @@
+# run: conda env create --file environment.yml
+name: a5g-env
+
+dependencies:
+    - numpy>=1.12
+    - seaborn>=0.7
+    - scipy>=0.18.0
+    - matplotlib>=2.0.0
+    - Cython>=0.26
+    - scikit-learn>=0.18.0
+    - bz2
+    - pip:
+         - "git+https://github.com/mathurinm/BlitzL1.git@master"
+        - "git+https://github.com/choldgraf/download"
