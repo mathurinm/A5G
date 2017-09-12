@@ -1,4 +1,6 @@
 # run: conda env create --file environment.yml
+# I've only checked with conda==4.3.25 so please update
+# to this version if there's an error
 name: a5g-env
 
 dependencies:
@@ -8,7 +10,8 @@ dependencies:
     - matplotlib>=2.0.0
     - Cython>=0.26
     - scikit-learn>=0.18.0
-    - bz2
+    - tqdm
+
     - pip:
-         - "git+https://github.com/mathurinm/BlitzL1.git@master"
+        - "git+https://github.com/mathurinm/BlitzL1.git@master"
         - "git+https://github.com/choldgraf/download"
