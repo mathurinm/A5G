@@ -10,3 +10,11 @@
 
 # PKG
 a5g.egg-info/*
+
+# figures
+*.pdf
+*.png
+*.svg
+
+# data
+data/*

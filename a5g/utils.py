@@ -115,15 +115,15 @@ def plot_res(all_times, labels, tols, log=False,
     # if I do color='r' in ax.bar() it's not the red I want so I use this hack:
     prop_list = list(plt.rcParams['axes.prop_cycle'])
     colors = [prop_list[i]['color'] for i in range(n_competitors)]
-    width = 0.2
+    width = 1. / (n_competitors + 1)
     ind = np.arange(len(tols))
     if log:
         plt.yscale("log")
+    b = 1 - n_competitors / 2.
     for i in range(n_competitors):
-        _ = ax.bar(ind + (i - 0.5) * width, all_times[i], width,
+        _ = ax.bar(ind + (i + b) * width, all_times[i], width,
                    label=labels[i],
                    color=colors[i], bottom=bottom)
-        # TODO: fix i - 0.5 to make it scale if there are 4, 5? 6 competitors
     # add some text for labels, title and axes ticks
     ax.set_ylabel('Time (s)')
     # ax.set_title('Comparison of Blitz and A5G on Leukemia')
