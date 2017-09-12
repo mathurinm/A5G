@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.sparse
 import blitzl1
+import time
 from sklearn.linear_model import MultiTaskLasso
 from .lasso_fast import a5g_lasso, a5g_lasso_sparse
 from .multitask_fast import a5g_mt
@@ -10,7 +11,7 @@ def lasso_path(X, y, alphas, tol,
                screening=True, gap_spacing=1000,
                batch_size=10, max_updates=50000, max_iter=100,
                verbose=False,
-               verbose_solver=False):
+               verbose_solver=False, times_per_alpha=False):
     """Compute Lasso path with A5G as inner solver on dense or sparse X"""
     n_alphas = len(alphas)
     n_samples, n_features = X.shape
@@ -26,6 +27,7 @@ def lasso_path(X, y, alphas, tol,
 
     betas = np.zeros((n_alphas, n_features))
     final_gaps = np.zeros(n_alphas)
+    all_times = np.zeros(n_alphas)
 
     # skip alpha_max and use decreasing alphas
     for t in range(1, n_alphas):
@@ -40,6 +42,7 @@ def lasso_path(X, y, alphas, tol,
             min_ws_size = 10
 
         alpha = alphas[t]
+        t0 = time.time()
         if not sparse:
             sol = solver(X, y, alpha, beta_init,
                          max_iter, gap_spacing, max_updates, batch_size,
@@ -52,11 +55,16 @@ def lasso_path(X, y, alphas, tol,
                              tol=tol, verbose=verbose_solver,
                              strategy=3, min_ws_size=min_ws_size,
                              screening=screening)
+
+        all_times[t] = time.time() - t0
         betas[t], final_gaps[t] = sol[0], sol[2][-1]  # last gap
         if final_gaps[t] > tol:
             print("-------------WARNING: did not converge, t = %d" % t)
             print("gap = %.1e , tol = %.1e" % (final_gaps[t], tol))
-    return betas, final_gaps
+    if times_per_alpha:
+        return betas, final_gaps, all_times
+    else:
+        return betas, final_gaps
 
 
 def lasso_path_mt(X, Y, alphas, tol,
@@ -105,29 +113,39 @@ def sklearn_path_mt(X, Y, alphas, tol):
     return clf.path(X, Y, alphas=alphas_scaled, tol=tol, l1_ratio=1)
 
 
-def blitz_path(X, y, alphas, eps, max_iter=1000, use_intercept=0):
+def blitz_path(X, y, alphas, eps, max_iter=1000, use_intercept=0,
+               verbose=False, verbose_solver=0, times_per_alpha=False):
     n_samples, n_features = X.shape
     n_alphas = alphas.shape[0]
 
     tol = eps * np.linalg.norm(y) ** 2
     blitzl1.set_tolerance(tol)
     blitzl1.set_use_intercept(use_intercept)
+    blitzl1.set_verbose(verbose_solver)
     prob = blitzl1.LassoProblem(X, y)
 
     blitzl1._num_iterations = max_iter
     betas = np.zeros((n_alphas, n_features))
     gaps = np.zeros(n_alphas)
+    all_times = np.zeros(n_alphas)
     beta_init = np.zeros(n_features)
 
     for t in range(n_alphas):
+        if verbose:
+            print("--------------------")
+            print("Computing %dth alpha" % (t + 1))
+        t0 = time.time()
         sol = prob.solve(alphas[t], initial_x=beta_init)
+        all_times[t] = time.time() - t0
         beta_init = np.copy(sol.x)
         betas[t, :] = sol.x
         gaps[t] = sol.duality_gap
 
         if abs(gaps[t]) > tol:
-
             print("warning: did not converge, t = ", t)
             print("gap = ", gaps[t], "eps = ", eps)
 
-    return betas, gaps
+    if times_per_alpha:
+        return betas, gaps, all_times
+    else:
+        return betas, gaps
