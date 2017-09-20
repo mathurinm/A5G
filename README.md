@@ -1,9 +1,31 @@
-The bash command to build the package is
-```python setup.py build_ext --inplace```
+# Aggressive gap screening rules for faster Lasso-type solvers
 
-If you want to install it system wide, the command is
-```pip install -e .```
+This repository hosts the implementation of fast solvers for the Lasso and multi-task Lasso problem.
 
-Then in a python console you can do
-```from a5g.lasso_fast import a5g```
+The algorithms are in ```./a5g/*_fast.pyx```.
+Currently implemented are:
+* Lasso solver on dense and sparse data
+* Multi-task Lasso solver on dense data (aka Group Lasso with groups equal to rows)
 
+The algorithms are written in Cython, using calls to BLAS when possible.
+
+# Installation
+Clone the repository:
+
+```
+$git clone git@github.com:mathurinm/A5G.git
+$cd A5G/
+$conda env create --file environment.yml
+$source activate a5g-env
+$python setup.py build_ext -i
+```
+
+# Dependencies
+All dependencies are in  ```./environment.yml```
+
+# Cite
+If you use this code, please cite [this paper](https://arxiv.org/abs/1703.07285):
+
+Mathurin Massias, Alexandre Gramfort and Joseph Salmon
+From safe screening rules to working sets for faster Lasso-type solvers
+Arxiv preprint, 2017
