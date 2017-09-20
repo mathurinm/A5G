@@ -17,7 +17,7 @@ $git clone git@github.com:mathurinm/A5G.git
 $cd A5G/
 $conda env create --file environment.yml
 $source activate a5g-env
-$python setup.py build_ext -i
+$pip install --no-deps -e .
 ```
 
 # Dependencies
