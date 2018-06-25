@@ -1,3 +1,8 @@
+# WARNING:
+This code is no longer maintained. We recommend you use the [celer package](https://github.com/mathurinm/celer)
+instead.
+
+
 # Aggressive gap screening rules for faster Lasso-type solvers
 
 This repository hosts the implementation of fast solvers for the Lasso and multi-task Lasso problem.
@@ -27,5 +32,7 @@ All dependencies are in  ```./environment.yml```
 If you use this code, please cite [this paper](https://arxiv.org/abs/1703.07285):
 
 Mathurin Massias, Alexandre Gramfort and Joseph Salmon
+
 From safe screening rules to working sets for faster Lasso-type solvers
+
 Arxiv preprint, 2017
